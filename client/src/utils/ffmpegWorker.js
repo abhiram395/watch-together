@@ -1,139 +1,142 @@
-// ffmpegWorker.js - FFmpeg WebAssembly transcoding utility
-
+// FFmpeg Worker - Robust video transcoding with proper error handling
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-// Configuration
-const FFMPEG_CORE_VERSION = '0.12.6';
-const FFMPEG_CORE_URL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
-
 let ffmpeg = null;
 let isLoaded = false;
-let loadingPromise = null;
+let loadPromise = null;
 
 /**
- * Load FFmpeg.wasm (singleton pattern with promise)
+ * Load FFmpeg with proper error handling
  */
-export const loadFFmpeg = async (onProgress = null) => {
+export const loadFFmpeg = async (onProgress) => {
   if (isLoaded && ffmpeg) {
     return ffmpeg;
   }
-  
-  if (loadingPromise) {
-    return loadingPromise;
+
+  if (loadPromise) {
+    return loadPromise;
   }
-  
-  loadingPromise = (async () => {
+
+  loadPromise = (async () => {
     try {
+      console.log('🎬 Loading FFmpeg...');
+      
       ffmpeg = new FFmpeg();
       
+      // Progress logging
       ffmpeg.on('log', ({ message }) => {
-        console.log('[FFmpeg]', message);
+        console.log('[FFmpeg Log]', message);
       });
-      
-      if (onProgress) {
-        ffmpeg.on('progress', ({ progress, time }) => {
-          onProgress(Math.min(progress * 100, 100));
-        });
-      }
-      
-      console.log('Loading FFmpeg core...');
+
+      // Load from CDN with proper URLs
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
       
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${FFMPEG_CORE_URL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${FFMPEG_CORE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
-      
-      console.log('FFmpeg loaded successfully');
+
+      console.log('✅ FFmpeg loaded successfully');
       isLoaded = true;
       return ffmpeg;
+      
     } catch (error) {
-      console.error('Failed to load FFmpeg:', error);
-      loadingPromise = null;
-      throw new Error(`Failed to load FFmpeg: ${error.message}`);
+      console.error('❌ FFmpeg load error:', error);
+      loadPromise = null;
+      ffmpeg = null;
+      throw new Error('Failed to load video processor. Please refresh and try again.');
     }
   })();
-  
-  return loadingPromise;
+
+  return loadPromise;
 };
 
 /**
  * Transcode video to browser-compatible format
  */
-export const transcodeVideo = async (file, outputFormat, onProgress = null) => {
+export const transcodeVideo = async (file, onProgress) => {
   try {
-    console.log('Starting transcode for:', file.name);
+    console.log('🎬 Starting transcode for:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
     
-    const ffmpegInstance = await loadFFmpeg(onProgress);
+    // Load FFmpeg
+    onProgress?.({ stage: 'Loading video processor...', percent: 5 });
+    const ff = await loadFFmpeg();
     
-    const inputFileName = 'input' + getExtension(file.name);
-    const outputFileName = `output.${outputFormat.container}`;
+    // Get file extension
+    const ext = file.name.split('.').pop().toLowerCase();
+    const inputName = `input.${ext}`;
+    const outputName = 'output.mp4'; // MP4 is most compatible
     
-    console.log('Writing input file to FFmpeg...');
+    // Write input file
+    onProgress?.({ stage: 'Reading video file...', percent: 10 });
+    console.log('📁 Writing input file to FFmpeg...');
+    
     const fileData = await fetchFile(file);
-    await ffmpegInstance.writeFile(inputFileName, fileData);
+    await ff.writeFile(inputName, fileData);
     
-    console.log('Starting FFmpeg transcode...');
+    console.log('✅ Input file written, starting transcode...');
+    onProgress?.({ stage: 'Converting video (this may take a while)...', percent: 15 });
     
-    // Use simpler, more compatible encoding parameters
-    let ffmpegArgs;
+    // Set up progress tracking
+    let lastProgress = 15;
+    ff.on('progress', ({ progress }) => {
+      // Map FFmpeg progress (0-1) to our progress (15-90)
+      const percent = Math.round(15 + (progress * 75));
+      if (percent > lastProgress) {
+        lastProgress = percent;
+        onProgress?.({ stage: 'Converting video...', percent });
+      }
+    });
     
-    if (outputFormat.container === 'webm') {
-      // WebM with VP8 (more compatible than VP9) and libvorbis
-      ffmpegArgs = [
-        '-i', inputFileName,
-        '-c:v', 'libvpx',           // VP8 codec (more compatible)
-        '-b:v', '1M',               // Video bitrate
-        '-c:a', 'libvorbis',        // Vorbis audio
-        '-b:a', '128k',             // Audio bitrate
-        '-deadline', 'realtime',   // Faster encoding
-        '-cpu-used', '4',           // Speed vs quality tradeoff
-        '-y',                       // Overwrite output
-        outputFileName
-      ];
-    } else {
-      // MP4 with H.264 and AAC
-      ffmpegArgs = [
-        '-i', inputFileName,
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',     // Fastest encoding
-        '-crf', '28',               // Quality (lower = better, 28 is ok)
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-movflags', '+faststart',  // Enable streaming
-        '-y',
-        outputFileName
-      ];
-    }
+    // Use simple, reliable encoding settings
+    // - libx264: Most compatible video codec
+    // - aac: Most compatible audio codec  
+    // - ultrafast preset: Fastest encoding
+    // - crf 28: Reasonable quality/speed balance
+    const ffmpegArgs = [
+      '-i', inputName,
+      '-c:v', 'libx264',      // H.264 video codec (most compatible)
+      '-preset', 'ultrafast', // Fastest encoding
+      '-crf', '28',           // Quality (lower = better, 28 is fast)
+      '-c:a', 'aac',          // AAC audio
+      '-b:a', '128k',         // Audio bitrate
+      '-movflags', '+faststart', // Enable streaming
+      '-y',                   // Overwrite output
+      outputName
+    ];
     
-    console.log('FFmpeg args:', ffmpegArgs.join(' '));
+    console.log('🎬 FFmpeg command:', ffmpegArgs.join(' '));
     
-    await ffmpegInstance.exec(ffmpegArgs);
+    // Run FFmpeg
+    await ff.exec(ffmpegArgs);
     
-    console.log('Reading output file...');
-    const outputData = await ffmpegInstance.readFile(outputFileName);
+    console.log('✅ Transcode complete, reading output...');
+    onProgress?.({ stage: 'Finalizing...', percent: 95 });
     
-    // Cleanup
+    // Read output file
+    const outputData = await ff.readFile(outputName);
+    
+    // Clean up
     try {
-      await ffmpegInstance.deleteFile(inputFileName);
-      await ffmpegInstance.deleteFile(outputFileName);
+      await ff.deleteFile(inputName);
+      await ff.deleteFile(outputName);
     } catch (e) {
       console.warn('Cleanup warning:', e);
     }
     
-    console.log('Transcode complete!');
+    // Create blob
+    const blob = new Blob([outputData.buffer], { type: 'video/mp4' });
+    console.log('✅ Output blob created:', (blob.size / 1024 / 1024).toFixed(2), 'MB');
     
-    return new Blob([outputData.buffer], { type: outputFormat.mimeType });
+    onProgress?.({ stage: 'Complete!', percent: 100 });
+    
+    return blob;
     
   } catch (error) {
-    console.error('Transcode error:', error);
-    throw new Error(`Transcoding failed: ${error.message}`);
+    console.error('❌ Transcode error:', error);
+    throw new Error(`Video conversion failed: ${error.message}`);
   }
-};
-
-const getExtension = (filename) => {
-  const parts = filename.split('.');
-  return parts.length > 1 ? '.' + parts[parts.length - 1].toLowerCase() : '';
 };
 
 /**
@@ -142,18 +145,18 @@ const getExtension = (filename) => {
 export const isFFmpegLoaded = () => isLoaded;
 
 /**
- * Terminate FFmpeg instance
+ * Terminate FFmpeg
  */
 export const terminateFFmpeg = () => {
   if (ffmpeg) {
     try {
       ffmpeg.terminate();
     } catch (e) {
-      console.warn('FFmpeg termination warning:', e);
+      console.warn('FFmpeg terminate warning:', e);
     }
     ffmpeg = null;
     isLoaded = false;
-    loadingPromise = null;
+    loadPromise = null;
   }
 };
 
