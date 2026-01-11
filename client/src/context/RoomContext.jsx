@@ -1,5 +1,5 @@
 // RoomContext - Global state management for room
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import socket from '../socket';
 
 const RoomContext = createContext();
@@ -25,143 +25,188 @@ export const RoomProvider = ({ children }) => {
   });
   const [messages, setMessages] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     // Socket connection events
-    socket.on('connect', () => {
-      console.log('Connected to server');
+    const handleConnect = () => {
+      console.log('Connected to server with ID:', socket.id);
       setConnected(true);
-    });
+    };
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
+    const handleDisconnect = (reason) => {
+      console.log('Disconnected from server:', reason);
       setConnected(false);
-    });
+      
+      // Auto-reconnect if disconnected unexpectedly
+      if (reason === 'io server disconnect' || reason === 'transport close') {
+        socket.connect();
+      }
+    };
+
+    const handleConnectError = (error) => {
+      console.error('Connection error:', error);
+      setConnected(false);
+    };
 
     // Room events
-    socket.on('room:created', ({ roomCode, isHost, participant }) => {
-      setRoomCode(roomCode);
-      setIsHost(isHost);
-      setCurrentUser(participant);
-      setParticipants([participant]);
-    });
+    const handleRoomCreated = ({ roomCode: code, isHost: host, participant }) => {
+      console.log('Room created:', code, 'Socket ID:', socket.id);
+      setRoomCode(code);
+      setIsHost(host);
+      setCurrentUser({ ...participant, socketId: socket.id });
+      setParticipants([{ ...participant, socketId: socket.id }]);
+      setIsJoining(false);
+    };
 
-    socket.on('room:joined', ({ roomCode, isHost, participant, playbackState: initialPlaybackState, controlMode: initialControlMode }) => {
-      setRoomCode(roomCode);
-      setIsHost(isHost);
-      setCurrentUser(participant);
+    const handleRoomJoined = ({ roomCode: code, isHost: host, participant, playbackState: initialPlaybackState, controlMode: initialControlMode }) => {
+      console.log('Room joined:', code, 'Socket ID:', socket.id);
+      setRoomCode(code);
+      setIsHost(host);
+      setCurrentUser({ ...participant, socketId: socket.id });
       setPlaybackState(initialPlaybackState);
       setControlMode(initialControlMode);
-    });
+      setIsJoining(false);
+    };
 
-    socket.on('room:participants', ({ participants: updatedParticipants }) => {
+    const handleParticipants = ({ participants: updatedParticipants }) => {
+      console.log('Participants updated:', updatedParticipants);
       setParticipants(updatedParticipants);
-    });
+    };
 
-    socket.on('room:user-joined', ({ participant, message }) => {
+    const handleUserJoined = ({ participant, message }) => {
       console.log(message);
       addSystemMessage(message);
-    });
+    };
 
-    socket.on('room:user-left', ({ nickname, message }) => {
+    const handleUserLeft = ({ nickname, message }) => {
       console.log(message);
       addSystemMessage(message);
-    });
+    };
 
-    socket.on('room:error', ({ error }) => {
+    const handleRoomError = ({ error }) => {
       console.error('Room error:', error);
       alert(error);
-    });
+      setIsJoining(false);
+    };
 
     // Playback sync
-    socket.on('playback:sync', (syncData) => {
+    const handlePlaybackSync = (syncData) => {
       setPlaybackState(prev => ({
         ...prev,
         playbackTime: syncData.playbackTime,
         isPlaying: syncData.isPlaying,
         playbackRate: syncData.playbackRate
       }));
-    });
+    };
 
-    socket.on('playback:play', ({ playbackTime }) => {
+    const handlePlaybackPlay = ({ playbackTime }) => {
       setPlaybackState(prev => ({
         ...prev,
         playbackTime,
         isPlaying: true
       }));
-    });
+    };
 
-    socket.on('playback:pause', ({ playbackTime }) => {
+    const handlePlaybackPause = ({ playbackTime }) => {
       setPlaybackState(prev => ({
         ...prev,
         playbackTime,
         isPlaying: false
       }));
-    });
+    };
 
-    socket.on('playback:seek', ({ playbackTime }) => {
+    const handlePlaybackSeek = ({ playbackTime }) => {
       setPlaybackState(prev => ({
         ...prev,
         playbackTime
       }));
-    });
+    };
 
-    socket.on('playback:error', ({ error }) => {
+    const handlePlaybackError = ({ error }) => {
       console.error('Playback error:', error);
-    });
+    };
 
     // Control mode
-    socket.on('mode:changed', ({ controlMode: newMode, message }) => {
+    const handleModeChanged = ({ controlMode: newMode, message }) => {
       setControlMode(newMode);
       addSystemMessage(message);
-    });
+    };
 
-    socket.on('mode:error', ({ error }) => {
+    const handleModeError = ({ error }) => {
       console.error('Mode error:', error);
-    });
+    };
 
     // Chat
-    socket.on('chat:message', ({ from, message, timestamp, socketId }) => {
-      console.log('Received chat message:', { from, message, timestamp, socketId });
-      setMessages(prev => [...prev, { from, message, timestamp, socketId, type: 'user' }]);
-    });
+    const handleChatMessage = ({ from, message, timestamp, socketId: msgSocketId }) => {
+      console.log('Chat message received:', { from, message, socketId: msgSocketId });
+      setMessages(prev => [...prev, { from, message, timestamp, socketId: msgSocketId, type: 'user' }]);
+    };
 
-    socket.on('chat:error', ({ error }) => {
+    const handleChatError = ({ error }) => {
       console.error('Chat error:', error);
-      addSystemMessage(`❌ Chat error: ${error}`);
-    });
+      alert('Chat error: ' + error);
+    };
 
     // Video processing status
-    socket.on('video:processing', ({ filename, message }) => {
+    const handleVideoProcessing = ({ filename, message }) => {
       console.log('Video processing:', filename);
       addSystemMessage(`🎬 ${message}`);
-    });
+    };
 
-    socket.on('video:ready', ({ filename, message }) => {
+    const handleVideoReady = ({ filename, message }) => {
       console.log('Video ready:', filename);
-      addSystemMessage(`✓ ${message}`);
-    });
+      addSystemMessage(`✅ ${message}`);
+    };
+
+    // Register all event listeners
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('room:created', handleRoomCreated);
+    socket.on('room:joined', handleRoomJoined);
+    socket.on('room:participants', handleParticipants);
+    socket.on('room:user-joined', handleUserJoined);
+    socket.on('room:user-left', handleUserLeft);
+    socket.on('room:error', handleRoomError);
+    socket.on('playback:sync', handlePlaybackSync);
+    socket.on('playback:play', handlePlaybackPlay);
+    socket.on('playback:pause', handlePlaybackPause);
+    socket.on('playback:seek', handlePlaybackSeek);
+    socket.on('playback:error', handlePlaybackError);
+    socket.on('mode:changed', handleModeChanged);
+    socket.on('mode:error', handleModeError);
+    socket.on('chat:message', handleChatMessage);
+    socket.on('chat:error', handleChatError);
+    socket.on('video:processing', handleVideoProcessing);
+    socket.on('video:ready', handleVideoReady);
+
+    // Check if already connected
+    if (socket.connected) {
+      setConnected(true);
+    }
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('room:created');
-      socket.off('room:joined');
-      socket.off('room:participants');
-      socket.off('room:user-joined');
-      socket.off('room:user-left');
-      socket.off('room:error');
-      socket.off('playback:sync');
-      socket.off('playback:play');
-      socket.off('playback:pause');
-      socket.off('playback:seek');
-      socket.off('playback:error');
-      socket.off('mode:changed');
-      socket.off('mode:error');
-      socket.off('chat:message');
-      socket.off('chat:error');
-      socket.off('video:processing');
-      socket.off('video:ready');
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('room:created', handleRoomCreated);
+      socket.off('room:joined', handleRoomJoined);
+      socket.off('room:participants', handleParticipants);
+      socket.off('room:user-joined', handleUserJoined);
+      socket.off('room:user-left', handleUserLeft);
+      socket.off('room:error', handleRoomError);
+      socket.off('playback:sync', handlePlaybackSync);
+      socket.off('playback:play', handlePlaybackPlay);
+      socket.off('playback:pause', handlePlaybackPause);
+      socket.off('playback:seek', handlePlaybackSeek);
+      socket.off('playback:error', handlePlaybackError);
+      socket.off('mode:changed', handleModeChanged);
+      socket.off('mode:error', handleModeError);
+      socket.off('chat:message', handleChatMessage);
+      socket.off('chat:error', handleChatError);
+      socket.off('video:processing', handleVideoProcessing);
+      socket.off('video:ready', handleVideoReady);
     };
   }, []);
 
@@ -173,29 +218,84 @@ export const RoomProvider = ({ children }) => {
     }]);
   };
 
-  const createRoom = (nickname) => {
-    socket.connect();
-    socket.emit('room:create', { nickname });
-  };
+  // Helper to ensure socket is connected before emitting
+  const emitWhenConnected = useCallback((event, data) => {
+    return new Promise((resolve, reject) => {
+      if (socket.connected) {
+        socket.emit(event, data);
+        resolve();
+      } else {
+        socket.connect();
+        
+        const onConnect = () => {
+          socket.off('connect', onConnect);
+          socket.off('connect_error', onError);
+          socket.emit(event, data);
+          resolve();
+        };
+        
+        const onError = (error) => {
+          socket.off('connect', onConnect);
+          socket.off('connect_error', onError);
+          reject(error);
+        };
+        
+        socket.once('connect', onConnect);
+        socket.once('connect_error', onError);
+        
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          socket.off('connect', onConnect);
+          socket.off('connect_error', onError);
+          reject(new Error('Connection timeout'));
+        }, 10000);
+      }
+    });
+  }, []);
 
-  const joinRoom = (code, nickname) => {
-    socket.connect();
-    socket.emit('room:join', { roomCode: code, nickname });
-  };
+  const createRoom = useCallback(async (nickname) => {
+    setIsJoining(true);
+    try {
+      await emitWhenConnected('room:create', { nickname });
+    } catch (error) {
+      console.error('Failed to create room:', error);
+      alert('Failed to connect to server. Please try again.');
+      setIsJoining(false);
+    }
+  }, [emitWhenConnected]);
 
-  const leaveRoom = () => {
-    socket.emit('room:leave');
-    socket.disconnect();
+  const joinRoom = useCallback(async (code, nickname) => {
+    setIsJoining(true);
+    try {
+      await emitWhenConnected('room:join', { roomCode: code, nickname });
+    } catch (error) {
+      console.error('Failed to join room:', error);
+      alert('Failed to connect to server. Please try again.');
+      setIsJoining(false);
+    }
+  }, [emitWhenConnected]);
+
+  const leaveRoom = useCallback(() => {
+    if (socket.connected) {
+      socket.emit('room:leave');
+    }
+    // Don't disconnect - just leave the room
     setRoomCode(null);
     setIsHost(false);
     setParticipants([]);
     setCurrentUser(null);
     setMessages([]);
-  };
+    setControlMode('host-only');
+    setPlaybackState({
+      playbackTime: 0,
+      isPlaying: false,
+      playbackRate: 1.0
+    });
+  }, []);
 
-  const sendMessage = (message) => {
-    if (!connected) {
-      console.error('Cannot send message: Socket not connected');
+  const sendMessage = useCallback((message) => {
+    if (!message || !message.trim()) {
+      console.log('Empty message, not sending');
       return;
     }
     
@@ -204,27 +304,28 @@ export const RoomProvider = ({ children }) => {
       return;
     }
     
-    if (!message.trim()) {
-      console.error('Cannot send message: Message is empty');
+    if (!socket.connected) {
+      console.error('Cannot send message: Socket not connected');
+      alert('Not connected to server. Please refresh the page.');
       return;
     }
     
-    console.log('Sending message:', { roomCode, message: message.trim() });
+    console.log('Sending message:', { roomCode, message: message.trim(), socketId: socket.id });
     socket.emit('chat:message', { roomCode, message: message.trim() });
-  };
+  }, [roomCode]);
 
-  const changeControlMode = (mode) => {
-    if (isHost && roomCode) {
+  const changeControlMode = useCallback((mode) => {
+    if (isHost && roomCode && socket.connected) {
       socket.emit('mode:change', { roomCode, mode });
     }
-  };
+  }, [isHost, roomCode]);
 
-  const canControl = () => {
+  const canControl = useCallback(() => {
     if (controlMode === 'host-only') {
       return isHost;
     }
     return true; // Shared mode
-  };
+  }, [controlMode, isHost]);
 
   const value = {
     roomCode,
@@ -235,6 +336,7 @@ export const RoomProvider = ({ children }) => {
     playbackState,
     messages,
     connected,
+    isJoining,
     createRoom,
     joinRoom,
     leaveRoom,

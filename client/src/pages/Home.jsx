@@ -1,5 +1,5 @@
 // Home page - Create or join room
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRoom } from '../context/RoomContext';
 
@@ -7,22 +7,30 @@ const Home = () => {
   const [nickname, setNickname] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [mode, setMode] = useState('create'); // 'create' or 'join'
-  const { createRoom, joinRoom } = useRoom();
+  const { createRoom, joinRoom, roomCode, isJoining, connected } = useRoom();
   const navigate = useNavigate();
 
-  const handleCreateRoom = (e) => {
-    e.preventDefault();
-    if (nickname.trim()) {
-      createRoom(nickname.trim());
+  // Navigate to room when roomCode is set (room created/joined successfully)
+  useEffect(() => {
+    if (roomCode) {
+      console.log('Room ready, navigating to /room');
       navigate('/room');
+    }
+  }, [roomCode, navigate]);
+
+  const handleCreateRoom = async (e) => {
+    e.preventDefault();
+    if (nickname.trim() && !isJoining) {
+      await createRoom(nickname.trim());
+      // Navigation happens via useEffect when roomCode is set
     }
   };
 
-  const handleJoinRoom = (e) => {
+  const handleJoinRoom = async (e) => {
     e.preventDefault();
-    if (nickname.trim() && roomCodeInput.trim()) {
-      joinRoom(roomCodeInput.trim().toUpperCase(), nickname.trim());
-      navigate('/room');
+    if (nickname.trim() && roomCodeInput.trim() && !isJoining) {
+      await joinRoom(roomCodeInput.trim().toUpperCase(), nickname.trim());
+      // Navigation happens via useEffect when roomCode is set
     }
   };
 
@@ -32,18 +40,23 @@ const Home = () => {
         <div className="logo-section">
           <h1 className="app-title">🎬 Watch Together</h1>
           <p className="app-subtitle">Stream movies with friends in real-time</p>
+          {!connected && (
+            <p className="connection-status connecting">Connecting to server...</p>
+          )}
         </div>
 
         <div className="mode-selector">
           <button
             className={`mode-btn ${mode === 'create' ? 'active' : ''}`}
             onClick={() => setMode('create')}
+            disabled={isJoining}
           >
             Create Room
           </button>
           <button
             className={`mode-btn ${mode === 'join' ? 'active' : ''}`}
             onClick={() => setMode('join')}
+            disabled={isJoining}
           >
             Join Room
           </button>
@@ -60,9 +73,10 @@ const Home = () => {
               className="input-field"
               maxLength={20}
               required
+              disabled={isJoining}
             />
-            <button type="submit" className="submit-btn">
-              Create Room
+            <button type="submit" className="submit-btn" disabled={isJoining || !nickname.trim()}>
+              {isJoining ? 'Creating...' : 'Create Room'}
             </button>
           </form>
         ) : (
@@ -76,6 +90,7 @@ const Home = () => {
               className="input-field"
               maxLength={20}
               required
+              disabled={isJoining}
             />
             <input
               type="text"
@@ -85,9 +100,10 @@ const Home = () => {
               className="input-field"
               maxLength={6}
               required
+              disabled={isJoining}
             />
-            <button type="submit" className="submit-btn">
-              Join Room
+            <button type="submit" className="submit-btn" disabled={isJoining || !nickname.trim() || !roomCodeInput.trim()}>
+              {isJoining ? 'Joining...' : 'Join Room'}
             </button>
           </form>
         )}
