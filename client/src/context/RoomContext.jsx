@@ -125,6 +125,17 @@ export const RoomProvider = ({ children }) => {
       setMessages(prev => [...prev, { from, message, timestamp, socketId, type: 'user' }]);
     });
 
+    // Video processing status
+    socket.on('video:processing', ({ filename, message }) => {
+      console.log('Video processing:', filename);
+      addSystemMessage(`🎬 ${message}`);
+    });
+
+    socket.on('video:ready', ({ filename, message }) => {
+      console.log('Video ready:', filename);
+      addSystemMessage(`✓ ${message}`);
+    });
+
     return () => {
       socket.off('connect');
       socket.off('disconnect');
@@ -142,6 +153,8 @@ export const RoomProvider = ({ children }) => {
       socket.off('mode:changed');
       socket.off('mode:error');
       socket.off('chat:message');
+      socket.off('video:processing');
+      socket.off('video:ready');
     };
   }, []);
 
