@@ -232,10 +232,12 @@ export const getCacheStats = async () => {
   }
 };
 
-export default {
+const videoCacheAPI = {
   getCachedVideo,
   cacheTranscodedVideo,
   getTotalCacheSize,
   clearCache,
   getCacheStats
 };
+
+export default videoCacheAPI;

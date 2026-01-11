@@ -1,5 +1,5 @@
 // FileSelector - Host selects video file with universal format support
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import useVideoProcessor from '../hooks/useVideoProcessor';
 import TranscodingProgress from './TranscodingProgress';
 import socket from '../socket';
@@ -7,7 +7,6 @@ import socket from '../socket';
 const FileSelector = ({ onStreamReady }) => {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
-  const [isProcessingVideo, setIsProcessingVideo] = useState(false);
   
   const {
     isProcessing,
@@ -36,7 +35,6 @@ const FileSelector = ({ onStreamReady }) => {
     }
 
     try {
-      setIsProcessingVideo(true);
       
       // Notify other participants that video is being processed
       socket.emit('video:processing', { 
@@ -68,7 +66,6 @@ const FileSelector = ({ onStreamReady }) => {
           
           if (stream) {
             console.log('Stream captured successfully');
-            setIsProcessingVideo(false);
             
             // Notify participants that video is ready
             socket.emit('video:ready', { 
@@ -93,14 +90,12 @@ const FileSelector = ({ onStreamReady }) => {
     } catch (err) {
       console.error('File processing error:', err);
       alert(err.message || 'Error processing video file');
-      setIsProcessingVideo(false);
       reset();
     }
   };
 
   const handleCancel = () => {
     cancelProcessing();
-    setIsProcessingVideo(false);
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';

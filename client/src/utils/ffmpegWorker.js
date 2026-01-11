@@ -174,10 +174,12 @@ export const unloadFFmpeg = () => {
   }
 };
 
-export default {
+const ffmpegAPI = {
   loadFFmpeg,
   transcodeVideo,
   getVideoMetadata,
   isFFmpegLoaded,
   unloadFFmpeg
 };
+
+export default ffmpegAPI;

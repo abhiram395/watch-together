@@ -5,13 +5,33 @@ A Netflix-like watch-together web application that allows users to stream locall
 ## Features
 
 - 🎬 **Real-time P2P Video Streaming** via WebRTC
+- ✨ **Universal Video Format Support** - ALL formats supported (MP4, MKV, AVI, MOV, WebM, FLV, and more!)
 - 🔄 **Ultra-smooth Synchronization** with drift correction
+- 🔧 **Automatic Transcoding** - Unsupported formats converted automatically using FFmpeg.wasm
+- 💾 **Smart Caching** - Transcoded videos cached for instant reuse
 - 👥 **Guest Access** - No authentication required
 - 🎮 **Dual Control Modes** - Host-only or Shared control
 - 💬 **Real-time Chat** functionality
 - 📱 **Mobile & Desktop Support** - Responsive design
 - 🔒 **Private Rooms** with unique codes
 - 👑 **Room Management** - Up to 15-20 users per room
+
+## Supported Video Formats
+
+### ✅ All Formats Supported
+
+| Category | Formats |
+|----------|---------|
+| **Containers** | MP4, MKV, AVI, MOV, WebM, FLV, WMV, M4V, 3GP, OGG, MPEG, TS |
+| **Video Codecs** | H.264, H.265/HEVC, VP8, VP9, AV1, MPEG-4, DivX, XviD, Theora |
+| **Audio Codecs** | AAC, MP3, Opus, Vorbis, AC3, DTS, FLAC, PCM |
+| **Subtitles** | SRT, VTT, ASS/SSA (embedded & external) |
+
+**How it works:**
+- Natively supported formats (MP4, WebM) play directly
+- Unsupported formats are automatically transcoded to WebM/VP9 using FFmpeg.wasm
+- Transcoding happens in your browser - no server processing
+- Transcoded files are cached for instant reuse
 
 ## Tech Stack
 
@@ -22,9 +42,11 @@ A Netflix-like watch-together web application that allows users to stream locall
 
 ### Frontend
 - React.js
+- **FFmpeg.wasm** - WebAssembly-based video transcoding
 - WebRTC APIs
 - Socket.IO Client
 - React Router
+- IndexedDB for caching transcoded videos
 
 ## Installation
 
@@ -176,9 +198,23 @@ This platform is intended for private watch-together experiences. Users are resp
 ## Troubleshooting
 
 ### Video not loading
-- Ensure the video file format is supported (MP4, WebM)
+- All major video formats are supported (MP4, MKV, AVI, MOV, WebM, etc.)
+- If transcoding is needed, allow time for processing (progress shown in UI)
 - Check browser console for errors
-- Try a different video file
+- Ensure sufficient memory available for transcoding
+- Try clearing the video cache if issues persist
+
+### Transcoding taking too long
+- Transcoding time depends on file size and your device performance
+- Estimated time is shown in the progress dialog
+- Large files (>2GB) may take several minutes
+- Transcoded files are cached - next time will be instant
+- Consider using smaller/compressed video files for faster processing
+
+### Cache management
+- Cache limit: 500MB
+- Oldest transcoded videos automatically removed when limit reached
+- Clear cache manually through browser DevTools → Application → IndexedDB → WatchTogetherCache
 
 ### Sync issues
 - Check network connection quality

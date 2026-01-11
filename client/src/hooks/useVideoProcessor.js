@@ -1,7 +1,7 @@
 // useVideoProcessor.js - Hook for video processing with FFmpeg
 
 import { useState, useCallback, useRef } from 'react';
-import { analyzeVideoFile, needsTranscoding, formatFileSize, estimateTranscodingTime } from '../utils/formatDetector';
+import { analyzeVideoFile, formatFileSize, estimateTranscodingTime } from '../utils/formatDetector';
 import { getCachedVideo, cacheTranscodedVideo } from '../utils/videoCache';
 import { transcodeVideo, loadFFmpeg } from '../utils/ffmpegWorker';
 

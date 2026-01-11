@@ -151,7 +151,7 @@ export const estimateTranscodingTime = (fileSize) => {
   return Math.ceil(baseTime * 1.2);
 };
 
-export default {
+const formatDetectorAPI = {
   getFileExtension,
   canPlayType,
   isNativelySupported,
@@ -161,3 +161,5 @@ export default {
   formatFileSize,
   estimateTranscodingTime
 };
+
+export default formatDetectorAPI;
