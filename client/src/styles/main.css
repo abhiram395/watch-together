@@ -1043,3 +1043,82 @@ body {
     font-size: 0.875rem;
   }
 }
+
+/* File Selector Processing UI */
+.file-error {
+  background: rgba(229, 9, 20, 0.15);
+  border: 1px solid var(--error-color);
+  color: var(--error-color);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-dismiss {
+  background: none;
+  border: none;
+  color: var(--error-color);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.processing-container {
+  width: 100%;
+  padding: 1.5rem;
+  background: var(--bg-color);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.processing-stage {
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.processing-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.processing-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), #ff6b6b);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.processing-percent {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.cancel-btn {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn:hover {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
