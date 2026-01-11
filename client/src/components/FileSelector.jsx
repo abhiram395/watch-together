@@ -122,7 +122,7 @@ const FileSelector = ({ onStreamReady }) => {
           <input
             ref={fileInputRef}
             type="file"
-            accept="video/*"
+            accept={`video/*,${SUPPORTED_VIDEO_EXTENSIONS.map(ext => `.${ext}`).join(',')}`}
             onChange={handleFileSelect}
             style={{ display: 'none' }}
             id="video-file-input"
