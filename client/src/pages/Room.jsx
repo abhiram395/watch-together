@@ -6,7 +6,6 @@ import useWebRTC from '../hooks/useWebRTC';
 import useSync from '../hooks/useSync';
 import VideoPlayer from '../components/VideoPlayer';
 import FileSelector from '../components/FileSelector';
-import ControlBar from '../components/ControlBar';
 import ParticipantList from '../components/ParticipantList';
 import Chat from '../components/Chat';
 import RoomControls from '../components/RoomControls';
@@ -79,14 +78,11 @@ const Room = () => {
           )}
           
           {streamToDisplay && (
-            <>
-              <VideoPlayer
-                videoRef={videoRef}
-                stream={streamToDisplay}
-                isHost={isHost}
-              />
-              <ControlBar videoRef={videoRef} />
-            </>
+            <VideoPlayer
+              videoRef={videoRef}
+              stream={streamToDisplay}
+              isHost={isHost}
+            />
           )}
 
           {!isHost && !streamToDisplay && (

@@ -5,6 +5,7 @@ import { RoomProvider } from './context/RoomContext';
 import Home from './pages/Home';
 import Room from './pages/Room';
 import './styles/main.css';
+import './styles/video-player.css';
 
 function App() {
   return (

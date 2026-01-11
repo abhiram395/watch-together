@@ -110,6 +110,27 @@ export const RoomProvider = ({ children }) => {
       console.error('Playback error:', error);
     });
 
+    // Playback speed sync
+    socket.on('playback:speed', ({ speed }) => {
+      console.log('Playback speed changed:', speed);
+      setPlaybackState(prev => ({
+        ...prev,
+        playbackRate: speed
+      }));
+    });
+
+    // Audio track sync
+    socket.on('playback:audioTrack', ({ trackId }) => {
+      console.log('Audio track changed:', trackId);
+      // This will be handled in the VideoPlayer component
+    });
+
+    // Subtitle sync
+    socket.on('playback:subtitle', ({ subtitleId }) => {
+      console.log('Subtitle changed:', subtitleId);
+      // This will be handled in the VideoPlayer component
+    });
+
     // Control mode
     socket.on('mode:changed', ({ controlMode: newMode, message }) => {
       setControlMode(newMode);
@@ -156,6 +177,9 @@ export const RoomProvider = ({ children }) => {
       socket.off('playback:pause');
       socket.off('playback:seek');
       socket.off('playback:error');
+      socket.off('playback:speed');
+      socket.off('playback:audioTrack');
+      socket.off('playback:subtitle');
       socket.off('mode:changed');
       socket.off('mode:error');
       socket.off('chat:message');
