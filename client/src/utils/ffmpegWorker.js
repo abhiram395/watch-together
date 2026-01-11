@@ -10,6 +10,11 @@ let loadPromise = null;
 const FFMPEG_CORE_VERSION = '0.12.6';
 const FFMPEG_CORE_URL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 
+// Progress tracking constants
+const PROGRESS_START = 15;
+const PROGRESS_END = 90;
+const PROGRESS_RANGE = PROGRESS_END - PROGRESS_START;
+
 /**
  * Load FFmpeg with proper error handling
  */
@@ -94,13 +99,13 @@ export const transcodeVideo = async (file, onProgress) => {
     await ff.writeFile(inputName, fileData);
     
     console.log('✅ Input file written, starting transcode...');
-    onProgress?.({ stage: 'Converting video (this may take a while)...', percent: 15 });
+    onProgress?.({ stage: 'Converting video (this may take a while)...', percent: PROGRESS_START });
     
     // Set up progress tracking
-    let lastProgress = 15;
+    let lastProgress = PROGRESS_START;
     ff.on('progress', ({ progress }) => {
-      // Map FFmpeg progress (0-1) to our progress (15-90)
-      const percent = Math.min(90, Math.round(15 + (progress * 75)));
+      // Map FFmpeg progress (0-1) to our progress (PROGRESS_START-PROGRESS_END)
+      const percent = Math.min(PROGRESS_END, Math.round(PROGRESS_START + (progress * PROGRESS_RANGE)));
       if (percent > lastProgress) {
         lastProgress = percent;
         onProgress?.({ stage: 'Converting video...', percent });
