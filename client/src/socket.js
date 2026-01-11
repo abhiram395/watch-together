@@ -12,17 +12,4 @@ const socket = io(SOCKET_URL, {
   forceNew: false  // Important: reuse existing connection
 });
 
-// Debug logging
-socket.on('connect', () => {
-  console.log('Socket connected with ID:', socket.id);
-});
-
-socket.on('disconnect', (reason) => {
-  console.log('Socket disconnected:', reason);
-});
-
-socket.on('connect_error', (error) => {
-  console.error('Socket connection error:', error);
-});
-
 export default socket;

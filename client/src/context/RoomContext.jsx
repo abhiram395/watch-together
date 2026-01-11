@@ -1,5 +1,5 @@
 // RoomContext - Global state management for room
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import socket from '../socket';
 
 const RoomContext = createContext();
@@ -26,6 +26,9 @@ export const RoomProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [connected, setConnected] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  
+  // Ref to store timeout IDs for room operations
+  const roomOperationTimeoutRef = useRef(null);
 
   useEffect(() => {
     // Socket connection events
@@ -48,6 +51,10 @@ export const RoomProvider = ({ children }) => {
     // Room events
     const handleRoomCreated = ({ roomCode: code, isHost: host, participant }) => {
       console.log('Room created:', code, 'Socket ID:', socket.id);
+      if (roomOperationTimeoutRef.current) {
+        clearTimeout(roomOperationTimeoutRef.current);
+        roomOperationTimeoutRef.current = null;
+      }
       setRoomCode(code);
       setIsHost(host);
       setCurrentUser({ ...participant, socketId: socket.id });
@@ -57,6 +64,10 @@ export const RoomProvider = ({ children }) => {
 
     const handleRoomJoined = ({ roomCode: code, isHost: host, participant, playbackState: initialPlaybackState, controlMode: initialControlMode }) => {
       console.log('Room joined:', code, 'Socket ID:', socket.id);
+      if (roomOperationTimeoutRef.current) {
+        clearTimeout(roomOperationTimeoutRef.current);
+        roomOperationTimeoutRef.current = null;
+      }
       setRoomCode(code);
       setIsHost(host);
       setCurrentUser({ ...participant, socketId: socket.id });
@@ -82,6 +93,10 @@ export const RoomProvider = ({ children }) => {
 
     const handleRoomError = ({ error }) => {
       console.error('Room error:', error);
+      if (roomOperationTimeoutRef.current) {
+        clearTimeout(roomOperationTimeoutRef.current);
+        roomOperationTimeoutRef.current = null;
+      }
       alert(error);
       setIsJoining(false);
     };
@@ -224,6 +239,7 @@ export const RoomProvider = ({ children }) => {
         socket.connect();
         
         const onConnect = () => {
+          clearTimeout(timeoutId);
           socket.off('connect', onConnect);
           socket.off('connect_error', onError);
           socket.emit(event, data);
@@ -231,6 +247,7 @@ export const RoomProvider = ({ children }) => {
         };
         
         const onError = (error) => {
+          clearTimeout(timeoutId);
           socket.off('connect', onConnect);
           socket.off('connect_error', onError);
           reject(error);
@@ -240,7 +257,7 @@ export const RoomProvider = ({ children }) => {
         socket.once('connect_error', onError);
         
         // Timeout after 10 seconds
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           socket.off('connect', onConnect);
           socket.off('connect_error', onError);
           reject(new Error('Connection timeout'));
@@ -251,9 +268,22 @@ export const RoomProvider = ({ children }) => {
 
   const createRoom = useCallback(async (nickname) => {
     setIsJoining(true);
+    
+    // Set a timeout to reset isJoining if server doesn't respond
+    roomOperationTimeoutRef.current = setTimeout(() => {
+      setIsJoining(false);
+      console.warn('Room creation timeout - no response from server');
+      alert('Server is not responding. Please try again.');
+    }, 15000); // 15 second timeout
+    
     try {
       await emitWhenConnected('room:create', { nickname });
+      // isJoining will be reset by handleRoomCreated or handleRoomError
     } catch (error) {
+      if (roomOperationTimeoutRef.current) {
+        clearTimeout(roomOperationTimeoutRef.current);
+        roomOperationTimeoutRef.current = null;
+      }
       console.error('Failed to create room:', error);
       alert('Failed to connect to server. Please try again.');
       setIsJoining(false);
@@ -262,9 +292,22 @@ export const RoomProvider = ({ children }) => {
 
   const joinRoom = useCallback(async (code, nickname) => {
     setIsJoining(true);
+    
+    // Set a timeout to reset isJoining if server doesn't respond
+    roomOperationTimeoutRef.current = setTimeout(() => {
+      setIsJoining(false);
+      console.warn('Room join timeout - no response from server');
+      alert('Server is not responding. Please try again.');
+    }, 15000); // 15 second timeout
+    
     try {
       await emitWhenConnected('room:join', { roomCode: code, nickname });
+      // isJoining will be reset by handleRoomJoined or handleRoomError
     } catch (error) {
+      if (roomOperationTimeoutRef.current) {
+        clearTimeout(roomOperationTimeoutRef.current);
+        roomOperationTimeoutRef.current = null;
+      }
       console.error('Failed to join room:', error);
       alert('Failed to connect to server. Please try again.');
       setIsJoining(false);
