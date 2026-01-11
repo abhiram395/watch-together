@@ -7,6 +7,7 @@ const Chat = ({ onClose }) => {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
+  const previousMessageCountRef = useRef(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -14,7 +15,12 @@ const Chat = ({ onClose }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    // Reset sending state when a new message is received (likely our own message being echoed back)
+    if (isSending && messages.length > previousMessageCountRef.current) {
+      setIsSending(false);
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages, isSending]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -22,8 +28,6 @@ const Chat = ({ onClose }) => {
       setIsSending(true);
       sendMessage(messageInput.trim());
       setMessageInput('');
-      // Reset sending state after a short delay
-      setTimeout(() => setIsSending(false), 500);
     }
   };
 
