@@ -157,9 +157,11 @@ export const terminateFFmpeg = () => {
   }
 };
 
-export default {
+const ffmpegAPI = {
   loadFFmpeg,
   transcodeVideo,
   isFFmpegLoaded,
   terminateFFmpeg
 };
+
+export default ffmpegAPI;
