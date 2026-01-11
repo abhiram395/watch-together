@@ -9,7 +9,8 @@ const PROCESSING_TIME_BUFFER = 1.2; // 20% buffer for estimation
  */
 export const SUPPORTED_VIDEO_EXTENSIONS = [
   'mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 
-  'wmv', 'm4v', '3gp', 'ogg', 'mpeg', 'ts'
+  'wmv', 'm4v', '3gp', 'ogg', 'mpeg', 'ts',
+  'm2ts', 'vob', 'divx', 'xvid'
 ];
 
 /**
@@ -25,7 +26,7 @@ const FORMAT_SUPPORT = {
   
   // Requires transcoding
   requiresTranscoding: {
-    containers: ['mkv', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'ts'],
+    containers: ['mkv', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', 'mpeg', 'ts', 'm2ts', 'vob', 'divx', 'xvid'],
     videoCodecs: ['hevc', 'h265', 'mpeg4', 'divx', 'xvid', 'theora'],
     audioCodecs: ['ac3', 'dts', 'flac', 'pcm']
   }

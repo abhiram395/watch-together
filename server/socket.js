@@ -149,21 +149,32 @@ const setupSocketHandlers = (io, roomManager, syncEngine, controlModeManager) =>
 
     // Chat message
     socket.on('chat:message', ({ roomCode, message }) => {
-      const roomData = roomManager.getRoomBySocketId(socket.id);
+      console.log(`Chat message received from ${socket.id} for room ${roomCode}: ${message}`);
       
-      if (roomData && roomData.roomCode === roomCode) {
+      const roomData = roomManager.getRoomBySocketId(socket.id);
+      console.log('Room data found:', roomData ? 'yes' : 'no');
+      
+      if (roomData) {
         const room = roomData.room;
         const participant = room.participants.get(socket.id);
         
-        io.to(roomCode).emit('chat:message', {
-          from: participant.nickname,
-          message,
-          timestamp: Date.now(),
-          socketId: socket.id
-        });
+        if (participant) {
+          console.log(`Broadcasting message from ${participant.nickname} to room ${roomData.roomCode}`);
+          
+          // Broadcast to ALL in room including sender
+          io.to(roomData.roomCode).emit('chat:message', {
+            from: participant.nickname,
+            message,
+            timestamp: Date.now(),
+            socketId: socket.id
+          });
+        } else {
+          console.log('Participant not found in room');
+          socket.emit('chat:error', { error: 'Participant not found' });
+        }
       } else {
-        // User is not in the room they're trying to send to
-        socket.emit('chat:error', { error: 'You are not in this room' });
+        console.log('User not in any room');
+        socket.emit('chat:error', { error: 'You are not in any room' });
       }
     });
 
