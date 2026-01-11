@@ -1,9 +1,12 @@
-// useVideoProcessor.js - Hook for video processing with FFmpeg
-
+// useVideoProcessor - Hook for processing video files with FFmpeg
 import { useState, useCallback, useRef } from 'react';
-import { analyzeVideoFile, formatFileSize, estimateTranscodingTime } from '../utils/formatDetector';
-import { transcodeVideo, loadFFmpeg } from '../utils/ffmpegWorker';
-import videoCache from '../utils/videoCache';
+import { 
+  analyzeVideoFile, 
+  formatFileSize, 
+  estimateTranscodingTime
+} from '../utils/formatDetector';
+import { transcodeVideo, terminateFFmpeg } from '../utils/ffmpegWorker';
+import { getCachedVideo, cacheTranscodedVideo } from '../utils/videoCache';
 
 const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -17,14 +20,12 @@ const useVideoProcessor = () => {
   const processVideo = useCallback(async (file) => {
     setIsProcessing(true);
     setProgress(0);
+    setStage('Analyzing video...');
     setError(null);
     cancelledRef.current = false;
 
     try {
       // Stage 1: Analyze file
-      setStage('Analyzing video...');
-      setProgress(5);
-      
       const analysis = await analyzeVideoFile(file);
       setFileInfo({
         name: file.name,
@@ -32,87 +33,89 @@ const useVideoProcessor = () => {
         format: analysis.extension.toUpperCase()
       });
 
-      console.log('Video analysis:', analysis);
+      console.log('📊 Video analysis:', analysis);
 
-      // Check if transcoding is needed
+      // Stage 2: Check if native playback is supported
       if (!analysis.needsTranscoding) {
-        console.log('No transcoding needed, using original file');
+        console.log('✅ Native playback supported, no transcoding needed');
         setStage('Ready!');
         setProgress(100);
         setIsProcessing(false);
-        return file;
+        return file; // Return original file
       }
 
-      // Check cache first
+      console.log('🔄 Transcoding required for:', file.name);
+
+      // Stage 3: Check cache
       setStage('Checking cache...');
-      setProgress(10);
+      setProgress(5);
       
-      const cached = await videoCache.getCachedVideo(file);
-      if (cached) {
-        console.log('Found in cache!');
-        setStage('Loaded from cache!');
-        setProgress(100);
-        setIsProcessing(false);
-        return cached;
-      }
-
-      if (cancelledRef.current) {
-        throw new Error('Processing cancelled');
-      }
-
-      // Stage 2: Load FFmpeg
-      setStage('Loading video processor...');
-      setProgress(15);
-      setEstimatedTime(estimateTranscodingTime(file.size));
-      
-      await loadFFmpeg();
-      
-      if (cancelledRef.current) {
-        throw new Error('Processing cancelled');
-      }
-
-      // Stage 3: Transcode
-      setStage('Converting video...');
-      
-      const outputFormat = analysis.recommendedFormat;
-      console.log('Transcoding to:', outputFormat);
-      
-      const transcodedBlob = await transcodeVideo(
-        file,
-        outputFormat,
-        (ffmpegProgress) => {
-          // Map FFmpeg progress (0-100) to our progress (20-90)
-          const mappedProgress = 20 + (ffmpegProgress * 0.7);
-          setProgress(Math.min(mappedProgress, 90));
+      try {
+        const cached = await getCachedVideo(file);
+        if (cached) {
+          console.log('✅ Found in cache!');
+          setStage('Loaded from cache!');
+          setProgress(100);
+          setIsProcessing(false);
+          return cached;
         }
-      );
+      } catch (cacheError) {
+        console.warn('Cache check failed:', cacheError);
+        // Continue with transcoding
+      }
 
       if (cancelledRef.current) {
         throw new Error('Processing cancelled');
       }
 
-      // Stage 4: Cache the result
+      // Stage 4: Estimate time
+      setEstimatedTime(estimateTranscodingTime(file.size));
+
+      // Stage 5: Transcode
+      setStage('Starting conversion...');
+      setProgress(10);
+
+      const transcodedBlob = await transcodeVideo(file, ({ stage: s, percent }) => {
+        if (!cancelledRef.current) {
+          setStage(s);
+          setProgress(percent);
+        }
+      });
+
+      if (cancelledRef.current) {
+        throw new Error('Processing cancelled');
+      }
+
+      // Stage 6: Cache the result
       setStage('Saving to cache...');
       setProgress(95);
       
-      await videoCache.cacheTranscodedVideo(file, transcodedBlob);
-      
+      try {
+        await cacheTranscodedVideo(file, transcodedBlob);
+        console.log('✅ Cached transcoded video');
+      } catch (cacheError) {
+        console.warn('Failed to cache:', cacheError);
+        // Continue anyway
+      }
+
       setStage('Complete!');
       setProgress(100);
       setIsProcessing(false);
-      
+
       return transcodedBlob;
 
     } catch (err) {
-      console.error('Video processing error:', err);
+      console.error('❌ Video processing error:', err);
       setError(err.message || 'Failed to process video');
       setIsProcessing(false);
+      terminateFFmpeg();
       throw err;
     }
   }, []);
 
   const cancelProcessing = useCallback(() => {
     cancelledRef.current = true;
+    terminateFFmpeg();
     setIsProcessing(false);
     setProgress(0);
     setStage('');
@@ -120,6 +123,7 @@ const useVideoProcessor = () => {
   }, []);
 
   const reset = useCallback(() => {
+    cancelledRef.current = false;
     setIsProcessing(false);
     setProgress(0);
     setStage('');
