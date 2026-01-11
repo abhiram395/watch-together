@@ -1010,9 +1010,9 @@ body {
 
 /* File selector updates */
 .file-hint-secondary {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 0.5rem;
 }
 
 .file-select-btn.disabled {
@@ -1046,24 +1046,37 @@ body {
 
 /* File Selector Processing UI */
 .file-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background: rgba(229, 9, 20, 0.15);
-  border: 1px solid var(--error-color);
-  color: var(--error-color);
+  border: 1px solid #e50914;
+  color: #ff6b6b;
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.file-error span {
+  flex: 1;
 }
 
 .error-dismiss {
   background: none;
   border: none;
-  color: var(--error-color);
+  color: #ff6b6b;
   font-size: 1.2rem;
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0 0.5rem;
+  margin-left: 0.5rem;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.error-dismiss:hover {
+  opacity: 1;
 }
 
 .processing-container {
