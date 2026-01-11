@@ -140,8 +140,8 @@ const FileSelector = ({ onStreamReady }) => {
       setProgress({ stage: 'Ready!', percent: 100 });
       setIsProcessing(false);
 
-      // Pass stream and video element to parent
-      onStreamReady(stream, videoElement);
+      // Pass stream to parent
+      onStreamReady(stream);
 
     } catch (err) {
       console.error('❌ Error:', err);
