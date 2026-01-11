@@ -167,6 +167,45 @@ const setupSocketHandlers = (io, roomManager, syncEngine, controlModeManager) =>
       }
     });
 
+    // Video processing status - Host notifies they're processing video
+    socket.on('video:processing', ({ filename, size }) => {
+      const roomData = roomManager.getRoomBySocketId(socket.id);
+      
+      if (roomData) {
+        const { roomCode, room } = roomData;
+        const participant = room.participants.get(socket.id);
+        
+        if (participant && participant.isHost) {
+          // Broadcast to other participants
+          socket.to(roomCode).emit('video:processing', {
+            filename,
+            size,
+            message: 'Host is preparing the video...'
+          });
+          console.log(`Host in room ${roomCode} is processing video: ${filename}`);
+        }
+      }
+    });
+
+    // Video ready - Host notifies video is ready for streaming
+    socket.on('video:ready', ({ filename }) => {
+      const roomData = roomManager.getRoomBySocketId(socket.id);
+      
+      if (roomData) {
+        const { roomCode, room } = roomData;
+        const participant = room.participants.get(socket.id);
+        
+        if (participant && participant.isHost) {
+          // Broadcast to other participants
+          socket.to(roomCode).emit('video:ready', {
+            filename,
+            message: 'Video is ready! Streaming will begin shortly...'
+          });
+          console.log(`Video ready in room ${roomCode}: ${filename}`);
+        }
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       handleLeaveRoom(socket);
