@@ -21,7 +21,7 @@ const FileSelector = ({ onStreamReady }) => {
     // Create a hidden video element to capture stream
     const video = document.createElement('video');
     video.src = videoUrl;
-    video.muted = true; // Mute to avoid echo
+    video.muted = true; // Mute to prevent audio feedback during capture
     video.loop = false;
     
     videoRef.current = video;

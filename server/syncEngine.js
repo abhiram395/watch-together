@@ -64,12 +64,13 @@ class SyncEngine {
   }
 
   // Determine correction strategy based on drift
-  getCorrectionStrategy(drift) {
+  getCorrectionStrategy(drift, clientTime, serverTime) {
     if (drift < 0.3) {
       // Small drift - use gradual playback rate adjustment
+      const isClientAhead = clientTime > serverTime;
       return {
         type: 'gradual',
-        adjustment: drift > 0.1 ? (drift > 0 ? 1.05 : 0.95) : 1.0
+        adjustment: drift > 0.1 ? (isClientAhead ? 0.95 : 1.05) : 1.0
       };
     } else {
       // Large drift - hard seek

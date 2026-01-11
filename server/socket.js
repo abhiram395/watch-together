@@ -161,6 +161,9 @@ const setupSocketHandlers = (io, roomManager, syncEngine, controlModeManager) =>
           timestamp: Date.now(),
           socketId: socket.id
         });
+      } else {
+        // User is not in the room they're trying to send to
+        socket.emit('chat:error', { error: 'You are not in this room' });
       }
     });
 

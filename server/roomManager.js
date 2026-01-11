@@ -8,15 +8,23 @@ class RoomManager {
   // Generate unique room code
   generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    const maxAttempts = 100;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      
+      // Ensure uniqueness
+      if (!this.rooms.has(code)) {
+        return code;
+      }
     }
-    // Ensure uniqueness
-    if (this.rooms.has(code)) {
-      return this.generateRoomCode();
-    }
-    return code;
+    
+    // Fallback: add timestamp suffix if still not unique
+    const timestamp = Date.now().toString(36).toUpperCase();
+    return timestamp.slice(-6);
   }
 
   // Create a new room
