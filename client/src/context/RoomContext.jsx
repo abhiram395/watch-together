@@ -122,7 +122,13 @@ export const RoomProvider = ({ children }) => {
 
     // Chat
     socket.on('chat:message', ({ from, message, timestamp, socketId }) => {
+      console.log('Received chat message:', { from, message, timestamp, socketId });
       setMessages(prev => [...prev, { from, message, timestamp, socketId, type: 'user' }]);
+    });
+
+    socket.on('chat:error', ({ error }) => {
+      console.error('Chat error:', error);
+      addSystemMessage(`❌ Chat error: ${error}`);
     });
 
     // Video processing status
@@ -153,6 +159,7 @@ export const RoomProvider = ({ children }) => {
       socket.off('mode:changed');
       socket.off('mode:error');
       socket.off('chat:message');
+      socket.off('chat:error');
       socket.off('video:processing');
       socket.off('video:ready');
     };
@@ -187,9 +194,23 @@ export const RoomProvider = ({ children }) => {
   };
 
   const sendMessage = (message) => {
-    if (roomCode && message.trim()) {
-      socket.emit('chat:message', { roomCode, message });
+    if (!connected) {
+      console.error('Cannot send message: Socket not connected');
+      return;
     }
+    
+    if (!roomCode) {
+      console.error('Cannot send message: No room code');
+      return;
+    }
+    
+    if (!message.trim()) {
+      console.error('Cannot send message: Message is empty');
+      return;
+    }
+    
+    console.log('Sending message:', { roomCode, message: message.trim() });
+    socket.emit('chat:message', { roomCode, message: message.trim() });
   };
 
   const changeControlMode = (mode) => {
