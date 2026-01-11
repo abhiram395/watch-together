@@ -46,3 +46,10 @@ temp/
 
 # Production
 /client/build
+
+# Server logs
+server/server.log
+server/nohup.out
+
+# Test files
+server/test.js
