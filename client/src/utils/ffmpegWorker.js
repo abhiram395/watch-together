@@ -9,7 +9,7 @@ let loadPromise = null;
 /**
  * Load FFmpeg with proper error handling
  */
-export const loadFFmpeg = async (onProgress) => {
+export const loadFFmpeg = async () => {
   if (isLoaded && ffmpeg) {
     return ffmpeg;
   }

@@ -6,6 +6,9 @@ import { transcodeVideo, terminateFFmpeg } from '../utils/ffmpegWorker';
 // Formats that browsers can play natively (no transcoding needed)
 const NATIVE_FORMATS = ['mp4', 'webm', 'ogg', 'mov'];
 
+// Timeout for native playback test (milliseconds)
+const NATIVE_PLAYBACK_TIMEOUT = 10000;
+
 const FileSelector = ({ onStreamReady }) => {
   const fileInputRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -41,26 +44,25 @@ const FileSelector = ({ onStreamReady }) => {
       const cleanup = () => {
         video.onloadedmetadata = null;
         video.onerror = null;
+        URL.revokeObjectURL(url);
       };
 
       video.onloadedmetadata = () => {
         cleanup();
         console.log('✅ Native playback supported for:', file.name);
-        resolve({ video, url });
+        resolve({ video, url: URL.createObjectURL(file) }); // Create new URL for actual use
       };
 
       video.onerror = () => {
         cleanup();
-        URL.revokeObjectURL(url);
         reject(new Error('Cannot play natively'));
       };
 
-      // Timeout after 10 seconds
+      // Timeout after configured time
       setTimeout(() => {
         cleanup();
-        URL.revokeObjectURL(url);
         reject(new Error('Native playback timeout'));
-      }, 10000);
+      }, NATIVE_PLAYBACK_TIMEOUT);
     });
   };
 
@@ -200,7 +202,7 @@ const FileSelector = ({ onStreamReady }) => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/*,.mkv,.avi,.flv,.wmv,.mov,.m4v,.3gp,.mpeg,.ts,.divx,.xvid"
+              accept="video/*"
               onChange={handleFileSelect}
               style={{ display: 'none' }}
               id="video-file-input"
