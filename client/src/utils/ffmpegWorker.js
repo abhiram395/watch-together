@@ -3,168 +3,137 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-// Configuration constants
+// Configuration
 const FFMPEG_CORE_VERSION = '0.12.6';
-const CPU_USED_SETTING = 5; // 0=slowest/best quality, 5=faster/lower quality
+const FFMPEG_CORE_URL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 
-let ffmpegInstance = null;
-let isLoading = false;
+let ffmpeg = null;
 let isLoaded = false;
 let loadingPromise = null;
 
 /**
- * Load FFmpeg WebAssembly
+ * Load FFmpeg.wasm (singleton pattern with promise)
  */
-export const loadFFmpeg = async (onProgress) => {
-  if (isLoaded) return ffmpegInstance;
+export const loadFFmpeg = async (onProgress = null) => {
+  if (isLoaded && ffmpeg) {
+    return ffmpeg;
+  }
   
-  // If already loading, return the same promise
-  if (isLoading && loadingPromise) {
+  if (loadingPromise) {
     return loadingPromise;
   }
   
-  try {
-    isLoading = true;
-    
-    loadingPromise = (async () => {
-      ffmpegInstance = new FFmpeg();
+  loadingPromise = (async () => {
+    try {
+      ffmpeg = new FFmpeg();
       
-      // Set up progress listener
+      ffmpeg.on('log', ({ message }) => {
+        console.log('[FFmpeg]', message);
+      });
+      
       if (onProgress) {
-        ffmpegInstance.on('progress', ({ progress, time }) => {
-          onProgress({ 
-            progress: Math.round(progress * 100),
-            time 
-          });
+        ffmpeg.on('progress', ({ progress, time }) => {
+          onProgress(Math.min(progress * 100, 100));
         });
       }
       
-      // Set up log listener for debugging
-      ffmpegInstance.on('log', ({ message }) => {
-        console.log('[FFmpeg]:', message);
+      console.log('Loading FFmpeg core...');
+      
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${FFMPEG_CORE_URL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${FFMPEG_CORE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
       
-      // Load FFmpeg core
-      const baseURL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
-      await ffmpegInstance.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
-      
-      isLoaded = true;
-      isLoading = false;
       console.log('FFmpeg loaded successfully');
-      return ffmpegInstance;
-    })();
-    
-    return await loadingPromise;
-  } catch (error) {
-    isLoading = false;
-    isLoaded = false;
-    loadingPromise = null;
-    console.error('Failed to load FFmpeg:', error);
-    throw error;
-  }
+      isLoaded = true;
+      return ffmpeg;
+    } catch (error) {
+      console.error('Failed to load FFmpeg:', error);
+      loadingPromise = null;
+      throw new Error(`Failed to load FFmpeg: ${error.message}`);
+    }
+  })();
+  
+  return loadingPromise;
 };
 
 /**
  * Transcode video to browser-compatible format
  */
-export const transcodeVideo = async (file, options = {}, progressCallback) => {
+export const transcodeVideo = async (file, outputFormat, onProgress = null) => {
   try {
-    // Load FFmpeg if not already loaded
-    const ffmpeg = await loadFFmpeg(progressCallback);
+    console.log('Starting transcode for:', file.name);
     
-    console.log('Starting transcoding:', file.name);
-    progressCallback?.({ stage: 'loading', progress: 0 });
+    const ffmpegInstance = await loadFFmpeg(onProgress);
     
-    // Write input file to FFmpeg file system
-    await ffmpeg.writeFile('input', await fetchFile(file));
-    progressCallback?.({ stage: 'processing', progress: 5 });
+    const inputFileName = 'input' + getExtension(file.name);
+    const outputFileName = `output.${outputFormat.container}`;
     
-    // Determine output format
-    const outputFormat = options.format || 'webm';
-    const videoCodec = options.videoCodec || 'libvpx-vp9';
-    const audioCodec = options.audioCodec || 'libopus';
-    const outputFile = `output.${outputFormat}`;
+    console.log('Writing input file to FFmpeg...');
+    const fileData = await fetchFile(file);
+    await ffmpegInstance.writeFile(inputFileName, fileData);
     
-    // FFmpeg transcoding arguments
-    // Using faster presets for real-time transcoding
-    const args = [
-      '-i', 'input',
-      '-c:v', videoCodec,
-      '-b:v', '2M', // Video bitrate
-      '-c:a', audioCodec,
-      '-b:a', '128k', // Audio bitrate
-      '-cpu-used', String(CPU_USED_SETTING), // Faster encoding (0=slowest, 5=faster)
-      '-deadline', 'realtime', // Real-time encoding
-      '-row-mt', '1', // Enable row-based multithreading
-      outputFile
-    ];
+    console.log('Starting FFmpeg transcode...');
     
-    console.log('FFmpeg command:', args.join(' '));
-    progressCallback?.({ stage: 'processing', progress: 10 });
+    // Use simpler, more compatible encoding parameters
+    let ffmpegArgs;
     
-    // Execute transcoding
-    await ffmpeg.exec(args);
-    progressCallback?.({ stage: 'processing', progress: 90 });
+    if (outputFormat.container === 'webm') {
+      // WebM with VP8 (more compatible than VP9) and libvorbis
+      ffmpegArgs = [
+        '-i', inputFileName,
+        '-c:v', 'libvpx',           // VP8 codec (more compatible)
+        '-b:v', '1M',               // Video bitrate
+        '-c:a', 'libvorbis',        // Vorbis audio
+        '-b:a', '128k',             // Audio bitrate
+        '-deadline', 'realtime',   // Faster encoding
+        '-cpu-used', '4',           // Speed vs quality tradeoff
+        '-y',                       // Overwrite output
+        outputFileName
+      ];
+    } else {
+      // MP4 with H.264 and AAC
+      ffmpegArgs = [
+        '-i', inputFileName,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',     // Fastest encoding
+        '-crf', '28',               // Quality (lower = better, 28 is ok)
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',  // Enable streaming
+        '-y',
+        outputFileName
+      ];
+    }
     
-    // Read output file
-    const data = await ffmpeg.readFile(outputFile);
-    progressCallback?.({ stage: 'finalizing', progress: 95 });
+    console.log('FFmpeg args:', ffmpegArgs.join(' '));
     
-    // Clean up
-    await ffmpeg.deleteFile('input');
-    await ffmpeg.deleteFile(outputFile);
+    await ffmpegInstance.exec(ffmpegArgs);
     
-    // Create blob from output
-    const blob = new Blob([data.buffer], { 
-      type: outputFormat === 'webm' ? 'video/webm' : 'video/mp4' 
-    });
+    console.log('Reading output file...');
+    const outputData = await ffmpegInstance.readFile(outputFileName);
     
-    progressCallback?.({ stage: 'complete', progress: 100 });
-    console.log('Transcoding complete:', blob.size, 'bytes');
+    // Cleanup
+    try {
+      await ffmpegInstance.deleteFile(inputFileName);
+      await ffmpegInstance.deleteFile(outputFileName);
+    } catch (e) {
+      console.warn('Cleanup warning:', e);
+    }
     
-    return blob;
+    console.log('Transcode complete!');
+    
+    return new Blob([outputData.buffer], { type: outputFormat.mimeType });
+    
   } catch (error) {
-    console.error('Transcoding error:', error);
-    progressCallback?.({ stage: 'error', progress: 0, error: error.message });
-    throw error;
+    console.error('Transcode error:', error);
+    throw new Error(`Transcoding failed: ${error.message}`);
   }
 };
 
-/**
- * Get video metadata using FFprobe (via FFmpeg)
- */
-export const getVideoMetadata = async (file) => {
-  try {
-    const ffmpeg = await loadFFmpeg();
-    
-    // Write input file
-    await ffmpeg.writeFile('probe_input', await fetchFile(file));
-    
-    // Use FFmpeg to get basic info (duration, resolution)
-    // Note: FFmpeg.wasm doesn't include ffprobe, so we use basic FFmpeg output parsing
-    await ffmpeg.exec(['-i', 'probe_input', '-f', 'null', '-']);
-    
-    // Clean up
-    await ffmpeg.deleteFile('probe_input');
-    
-    // Return basic metadata
-    // In a real implementation, we'd parse FFmpeg output
-    return {
-      filename: file.name,
-      size: file.size,
-      type: file.type
-    };
-  } catch (error) {
-    console.error('Error getting metadata:', error);
-    return {
-      filename: file.name,
-      size: file.size,
-      type: file.type
-    };
-  }
+const getExtension = (filename) => {
+  const parts = filename.split('.');
+  return parts.length > 1 ? '.' + parts[parts.length - 1].toLowerCase() : '';
 };
 
 /**
@@ -173,22 +142,24 @@ export const getVideoMetadata = async (file) => {
 export const isFFmpegLoaded = () => isLoaded;
 
 /**
- * Unload FFmpeg (free memory)
+ * Terminate FFmpeg instance
  */
-export const unloadFFmpeg = () => {
-  if (ffmpegInstance) {
-    ffmpegInstance = null;
+export const terminateFFmpeg = () => {
+  if (ffmpeg) {
+    try {
+      ffmpeg.terminate();
+    } catch (e) {
+      console.warn('FFmpeg termination warning:', e);
+    }
+    ffmpeg = null;
     isLoaded = false;
-    console.log('FFmpeg unloaded');
+    loadingPromise = null;
   }
 };
 
-const ffmpegAPI = {
+export default {
   loadFFmpeg,
   transcodeVideo,
-  getVideoMetadata,
   isFFmpegLoaded,
-  unloadFFmpeg
+  terminateFFmpeg
 };
-
-export default ffmpegAPI;

@@ -174,13 +174,25 @@ export const RoomProvider = ({ children }) => {
   };
 
   const createRoom = (nickname) => {
-    socket.connect();
-    socket.emit('room:create', { nickname });
+    if (socket.connected) {
+      socket.emit('room:create', { nickname });
+    } else {
+      socket.connect();
+      socket.once('connect', () => {
+        socket.emit('room:create', { nickname });
+      });
+    }
   };
 
   const joinRoom = (code, nickname) => {
-    socket.connect();
-    socket.emit('room:join', { roomCode: code, nickname });
+    if (socket.connected) {
+      socket.emit('room:join', { roomCode: code, nickname });
+    } else {
+      socket.connect();
+      socket.once('connect', () => {
+        socket.emit('room:join', { roomCode: code, nickname });
+      });
+    }
   };
 
   const leaveRoom = () => {
@@ -194,23 +206,21 @@ export const RoomProvider = ({ children }) => {
   };
 
   const sendMessage = (message) => {
-    if (!connected) {
-      console.error('Cannot send message: Socket not connected');
-      return;
-    }
+    console.log('Sending message:', { roomCode, message, connected: socket.connected });
     
     if (!roomCode) {
-      console.error('Cannot send message: No room code');
+      console.error('No room code available');
       return;
     }
     
-    if (!message.trim()) {
-      console.error('Cannot send message: Message is empty');
+    if (!socket.connected) {
+      console.error('Socket not connected');
       return;
     }
     
-    console.log('Sending message:', { roomCode, message: message.trim() });
-    socket.emit('chat:message', { roomCode, message: message.trim() });
+    if (message.trim()) {
+      socket.emit('chat:message', { roomCode, message: message.trim() });
+    }
   };
 
   const changeControlMode = (mode) => {
