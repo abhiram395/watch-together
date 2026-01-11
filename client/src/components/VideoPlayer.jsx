@@ -11,19 +11,25 @@ const VideoPlayer = ({ videoRef, stream, isHost }) => {
     }
   }, [stream, videoRef]);
 
-  const handlePlay = () => {
-    // Handle autoplay restrictions
+  useEffect(() => {
+    // Try to play when component mounts
+    const handlePlay = () => {
+      if (videoRef.current) {
+        videoRef.current.play().catch(err => {
+          console.log('Autoplay prevented, user interaction required:', err);
+        });
+      }
+    };
+    handlePlay();
+  }, [videoRef]);
+
+  const handleVideoClick = () => {
     if (videoRef.current) {
       videoRef.current.play().catch(err => {
         console.log('Autoplay prevented, user interaction required:', err);
       });
     }
   };
-
-  useEffect(() => {
-    // Try to play when component mounts
-    handlePlay();
-  }, []);
 
   return (
     <div className="video-player">
@@ -32,7 +38,7 @@ const VideoPlayer = ({ videoRef, stream, isHost }) => {
         className="video-element"
         controls={false}
         playsInline
-        onClick={handlePlay}
+        onClick={handleVideoClick}
       />
       {!isHost && (
         <div className="video-overlay">

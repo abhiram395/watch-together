@@ -4,7 +4,7 @@ import { useRoom } from '../context/RoomContext';
 import socket from '../socket';
 
 const ControlBar = ({ videoRef }) => {
-  const { roomCode, canControl, playbackState } = useRoom();
+  const { roomCode, canControl } = useRoom();
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);

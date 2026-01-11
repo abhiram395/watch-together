@@ -12,6 +12,20 @@ export const useWebRTC = (roomCode, isHost, participants, localStream) => {
   const peerConnections = useRef({});
   const pendingCandidates = useRef({});
 
+  // Cleanup peer connection
+  const cleanupPeerConnection = useCallback((socketId) => {
+    if (peerConnections.current[socketId]) {
+      peerConnections.current[socketId].close();
+      delete peerConnections.current[socketId];
+    }
+    setRemoteStreams(prev => {
+      const newStreams = { ...prev };
+      delete newStreams[socketId];
+      return newStreams;
+    });
+    delete pendingCandidates.current[socketId];
+  }, []);
+
   // Create peer connection
   const createPeerConnection = useCallback((targetSocketId) => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -45,21 +59,7 @@ export const useWebRTC = (roomCode, isHost, participants, localStream) => {
     };
 
     return pc;
-  }, [roomCode]);
-
-  // Cleanup peer connection
-  const cleanupPeerConnection = useCallback((socketId) => {
-    if (peerConnections.current[socketId]) {
-      peerConnections.current[socketId].close();
-      delete peerConnections.current[socketId];
-    }
-    setRemoteStreams(prev => {
-      const newStreams = { ...prev };
-      delete newStreams[socketId];
-      return newStreams;
-    });
-    delete pendingCandidates.current[socketId];
-  }, []);
+  }, [roomCode, cleanupPeerConnection]);
 
   // Host: Create offer for new participant
   const createOffer = useCallback(async (targetSocketId) => {
@@ -184,12 +184,15 @@ export const useWebRTC = (roomCode, isHost, participants, localStream) => {
 
   // Cleanup on unmount
   useEffect(() => {
+    const connections = peerConnections.current;
     return () => {
-      Object.keys(peerConnections.current).forEach(socketId => {
-        cleanupPeerConnection(socketId);
+      Object.keys(connections).forEach(socketId => {
+        if (connections[socketId]) {
+          connections[socketId].close();
+        }
       });
     };
-  }, [cleanupPeerConnection]);
+  }, []);
 
   // Handle participant leaving
   useEffect(() => {

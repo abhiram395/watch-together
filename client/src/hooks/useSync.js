@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useRoom } from '../context/RoomContext';
 
 export const useSync = (videoRef) => {
-  const { playbackState, roomCode, canControl } = useRoom();
+  const { playbackState, canControl } = useRoom();
   const lastSyncTime = useRef(0);
   const syncThreshold = 0.3; // 300ms threshold for hard seek
   const minDriftForAdjustment = 0.1; // 100ms minimum drift for adjustment
