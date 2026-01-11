@@ -37,11 +37,7 @@ export const RoomProvider = ({ children }) => {
     const handleDisconnect = (reason) => {
       console.log('Disconnected from server:', reason);
       setConnected(false);
-      
-      // Auto-reconnect if disconnected unexpectedly
-      if (reason === 'io server disconnect' || reason === 'transport close') {
-        socket.connect();
-      }
+      // Rely on Socket.IO's built-in reconnection logic configured in socket.js
     };
 
     const handleConnectError = (error) => {
