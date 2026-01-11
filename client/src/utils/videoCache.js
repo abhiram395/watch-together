@@ -5,6 +5,44 @@ const DB_VERSION = 1;
 const STORE_NAME = 'transcodedVideos';
 const MAX_CACHE_SIZE = 500 * 1024 * 1024; // 500MB max cache
 
+// Semaphore for cache operations to prevent race conditions
+let cacheOperationInProgress = false;
+const cacheOperationQueue = [];
+
+/**
+ * Execute cache operation with semaphore
+ */
+const withCacheLock = async (operation) => {
+  // If operation in progress, queue this one
+  if (cacheOperationInProgress) {
+    return new Promise((resolve, reject) => {
+      cacheOperationQueue.push(async () => {
+        try {
+          const result = await operation();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+  
+  // Execute operation
+  cacheOperationInProgress = true;
+  try {
+    const result = await operation();
+    return result;
+  } finally {
+    cacheOperationInProgress = false;
+    
+    // Process next queued operation
+    if (cacheOperationQueue.length > 0) {
+      const nextOperation = cacheOperationQueue.shift();
+      nextOperation();
+    }
+  }
+};
+
 /**
  * Initialize IndexedDB
  */
@@ -71,42 +109,44 @@ export const getCachedVideo = async (originalFile) => {
  * Save transcoded video to cache
  */
 export const cacheTranscodedVideo = async (originalFile, transcodedBlob) => {
-  try {
-    const db = await initDB();
-    
-    // Check cache size before saving
-    const currentSize = await getTotalCacheSize();
-    if (currentSize + transcodedBlob.size > MAX_CACHE_SIZE) {
-      // Remove oldest entries to make space
-      await cleanupOldEntries(transcodedBlob.size);
-    }
-    
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    const cacheEntry = {
-      id: generateCacheKey(originalFile),
-      filename: originalFile.name,
-      originalSize: originalFile.size,
-      transcodedSize: transcodedBlob.size,
-      blob: transcodedBlob,
-      timestamp: Date.now()
-    };
-    
-    return new Promise((resolve, reject) => {
-      const request = store.put(cacheEntry);
+  return withCacheLock(async () => {
+    try {
+      const db = await initDB();
       
-      request.onsuccess = () => {
-        console.log('Cached transcoded video:', cacheEntry.id);
-        resolve();
+      // Check cache size before saving
+      const currentSize = await getTotalCacheSize();
+      if (currentSize + transcodedBlob.size > MAX_CACHE_SIZE) {
+        // Remove oldest entries to make space
+        await cleanupOldEntries(transcodedBlob.size);
+      }
+      
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      
+      const cacheEntry = {
+        id: generateCacheKey(originalFile),
+        filename: originalFile.name,
+        originalSize: originalFile.size,
+        transcodedSize: transcodedBlob.size,
+        blob: transcodedBlob,
+        timestamp: Date.now()
       };
       
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.error('Error caching video:', error);
-    throw error;
-  }
+      return new Promise((resolve, reject) => {
+        const request = store.put(cacheEntry);
+        
+        request.onsuccess = () => {
+          console.log('Cached transcoded video:', cacheEntry.id);
+          resolve();
+        };
+        
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('Error caching video:', error);
+      throw error;
+    }
+  });
 };
 
 /**

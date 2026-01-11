@@ -3,56 +3,65 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
+// Configuration constants
+const FFMPEG_CORE_VERSION = '0.12.6';
+const CPU_USED_SETTING = 5; // 0=slowest/best quality, 5=faster/lower quality
+
 let ffmpegInstance = null;
 let isLoading = false;
 let isLoaded = false;
+let loadingPromise = null;
 
 /**
  * Load FFmpeg WebAssembly
  */
 export const loadFFmpeg = async (onProgress) => {
   if (isLoaded) return ffmpegInstance;
-  if (isLoading) {
-    // Wait for loading to complete
-    while (isLoading) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return ffmpegInstance;
+  
+  // If already loading, return the same promise
+  if (isLoading && loadingPromise) {
+    return loadingPromise;
   }
   
   try {
     isLoading = true;
-    ffmpegInstance = new FFmpeg();
     
-    // Set up progress listener
-    if (onProgress) {
-      ffmpegInstance.on('progress', ({ progress, time }) => {
-        onProgress({ 
-          progress: Math.round(progress * 100),
-          time 
+    loadingPromise = (async () => {
+      ffmpegInstance = new FFmpeg();
+      
+      // Set up progress listener
+      if (onProgress) {
+        ffmpegInstance.on('progress', ({ progress, time }) => {
+          onProgress({ 
+            progress: Math.round(progress * 100),
+            time 
+          });
         });
+      }
+      
+      // Set up log listener for debugging
+      ffmpegInstance.on('log', ({ message }) => {
+        console.log('[FFmpeg]:', message);
       });
-    }
+      
+      // Load FFmpeg core
+      const baseURL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
+      await ffmpegInstance.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+      
+      isLoaded = true;
+      isLoading = false;
+      console.log('FFmpeg loaded successfully');
+      return ffmpegInstance;
+    })();
     
-    // Set up log listener for debugging
-    ffmpegInstance.on('log', ({ message }) => {
-      console.log('[FFmpeg]:', message);
-    });
-    
-    // Load FFmpeg core
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-    await ffmpegInstance.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    
-    isLoaded = true;
-    isLoading = false;
-    console.log('FFmpeg loaded successfully');
-    return ffmpegInstance;
+    return await loadingPromise;
   } catch (error) {
     isLoading = false;
     isLoaded = false;
+    loadingPromise = null;
     console.error('Failed to load FFmpeg:', error);
     throw error;
   }
@@ -87,7 +96,7 @@ export const transcodeVideo = async (file, options = {}, progressCallback) => {
       '-b:v', '2M', // Video bitrate
       '-c:a', audioCodec,
       '-b:a', '128k', // Audio bitrate
-      '-cpu-used', '5', // Faster encoding (0=slowest, 5=faster)
+      '-cpu-used', String(CPU_USED_SETTING), // Faster encoding (0=slowest, 5=faster)
       '-deadline', 'realtime', // Real-time encoding
       '-row-mt', '1', // Enable row-based multithreading
       outputFile

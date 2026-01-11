@@ -42,7 +42,7 @@ const TranscodingProgress = ({
     
     // Calculate remaining time based on progress
     const progressDecimal = progress / 100;
-    const elapsedRatio = progressDecimal;
+    const elapsedRatio = Math.max(0.01, progressDecimal); // Prevent division by zero
     const remainingRatio = 1 - elapsedRatio;
     const remainingSeconds = Math.ceil((estimatedTime * remainingRatio) / elapsedRatio);
     

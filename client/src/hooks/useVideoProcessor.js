@@ -5,6 +5,10 @@ import { analyzeVideoFile, formatFileSize, estimateTranscodingTime } from '../ut
 import { getCachedVideo, cacheTranscodedVideo } from '../utils/videoCache';
 import { transcodeVideo, loadFFmpeg } from '../utils/ffmpegWorker';
 
+// Progress mapping constants
+const PROGRESS_START = 10;
+const PROGRESS_TRANSCODING_RANGE = 0.8; // 10-90%
+
 export const useVideoProcessor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -55,7 +59,7 @@ export const useVideoProcessor = () => {
       
       // Stage 3: Load FFmpeg
       setStage('loading');
-      setProgress(10);
+      setProgress(PROGRESS_START);
       console.log('Loading FFmpeg...');
       await loadFFmpeg();
       
@@ -80,7 +84,7 @@ export const useVideoProcessor = () => {
           if (cancelledRef.current) return;
           
           // Map FFmpeg progress to 10-90%
-          const mappedProgress = 10 + (ffmpegProgress * 0.8);
+          const mappedProgress = PROGRESS_START + (ffmpegProgress * PROGRESS_TRANSCODING_RANGE);
           setProgress(Math.min(90, mappedProgress));
         }
       );

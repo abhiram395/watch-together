@@ -3,6 +3,7 @@ import React, { useRef } from 'react';
 import useVideoProcessor from '../hooks/useVideoProcessor';
 import TranscodingProgress from './TranscodingProgress';
 import socket from '../socket';
+import { SUPPORTED_VIDEO_EXTENSIONS } from '../utils/formatDetector';
 
 const FileSelector = ({ onStreamReady }) => {
   const fileInputRef = useRef(null);
@@ -26,8 +27,7 @@ const FileSelector = ({ onStreamReady }) => {
 
     // Validate file is a video
     const fileName = file.name.toLowerCase();
-    const videoExtensions = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', 'ogg', 'mpeg', 'ts'];
-    const hasVideoExtension = videoExtensions.some(ext => fileName.endsWith(`.${ext}`));
+    const hasVideoExtension = SUPPORTED_VIDEO_EXTENSIONS.some(ext => fileName.endsWith(`.${ext}`));
     
     if (!file.type.startsWith('video/') && !hasVideoExtension) {
       alert('Please select a valid video file');

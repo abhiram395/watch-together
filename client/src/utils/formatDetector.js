@@ -1,5 +1,17 @@
 // formatDetector.js - Detect video format and codec compatibility
 
+// Configuration constants
+const PROCESSING_TIME_PER_MB = 1; // seconds per MB (rough estimate)
+const PROCESSING_TIME_BUFFER = 1.2; // 20% buffer for estimation
+
+/**
+ * List of all supported video file extensions
+ */
+export const SUPPORTED_VIDEO_EXTENSIONS = [
+  'mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 
+  'wmv', 'm4v', '3gp', 'ogg', 'mpeg', 'ts'
+];
+
 /**
  * Supported video formats and their browser compatibility
  */
@@ -139,16 +151,16 @@ export const formatFileSize = (bytes) => {
  * Returns estimate in seconds
  */
 export const estimateTranscodingTime = (fileSize) => {
-  // Rough estimate: ~1MB per second of processing
+  // Rough estimate based on file size
   // This varies greatly based on:
   // - Video resolution and bitrate
   // - System performance
   // - Browser WebAssembly performance
   const mbSize = fileSize / (1024 * 1024);
-  const baseTime = mbSize * 1; // 1 second per MB
+  const baseTime = mbSize * PROCESSING_TIME_PER_MB;
   
-  // Add 20% buffer
-  return Math.ceil(baseTime * 1.2);
+  // Add buffer for safety
+  return Math.ceil(baseTime * PROCESSING_TIME_BUFFER);
 };
 
 const formatDetectorAPI = {
