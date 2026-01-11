@@ -147,6 +147,21 @@ const setupSocketHandlers = (io, roomManager, syncEngine, controlModeManager) =>
       }
     });
 
+    // Playback speed sync
+    socket.on('playback:speed', ({ roomCode, speed }) => {
+      io.to(roomCode).emit('playback:speed', { speed });
+    });
+
+    // Audio track sync
+    socket.on('playback:audioTrack', ({ roomCode, trackId }) => {
+      io.to(roomCode).emit('playback:audioTrack', { trackId });
+    });
+
+    // Subtitle sync
+    socket.on('playback:subtitle', ({ roomCode, subtitleId }) => {
+      io.to(roomCode).emit('playback:subtitle', { subtitleId });
+    });
+
     // Chat message
     socket.on('chat:message', ({ roomCode, message }) => {
       console.log(`Chat message received from ${socket.id} for room ${roomCode}: ${message}`);
