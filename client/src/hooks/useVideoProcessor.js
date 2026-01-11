@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { analyzeVideoFile, formatFileSize, estimateTranscodingTime } from '../utils/formatDetector';
-import { transcodeVideo, loadFFmpeg, terminateFFmpeg } from '../utils/ffmpegWorker';
+import { transcodeVideo, loadFFmpeg } from '../utils/ffmpegWorker';
 import videoCache from '../utils/videoCache';
 
 const useVideoProcessor = () => {
@@ -113,7 +113,6 @@ const useVideoProcessor = () => {
 
   const cancelProcessing = useCallback(() => {
     cancelledRef.current = true;
-    terminateFFmpeg();
     setIsProcessing(false);
     setProgress(0);
     setStage('');
