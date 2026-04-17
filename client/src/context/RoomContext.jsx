@@ -138,6 +138,27 @@ export const RoomProvider = ({ children }) => {
       console.error('Playback error:', error);
     };
 
+    // Playback speed sync
+    const handlePlaybackSpeed = ({ speed }) => {
+      console.log('Playback speed changed:', speed);
+      setPlaybackState(prev => ({
+        ...prev,
+        playbackRate: speed
+      }));
+    };
+
+    // Audio track sync
+    const handlePlaybackAudioTrack = ({ trackId }) => {
+      console.log('Audio track changed:', trackId);
+      // This will be handled in the VideoPlayer component
+    };
+
+    // Subtitle sync
+    const handlePlaybackSubtitle = ({ subtitleId }) => {
+      console.log('Subtitle changed:', subtitleId);
+      // This will be handled in the VideoPlayer component
+    };
+
     // Control mode
     const handleModeChanged = ({ controlMode: newMode, message }) => {
       setControlMode(newMode);
@@ -185,6 +206,9 @@ export const RoomProvider = ({ children }) => {
     socket.on('playback:pause', handlePlaybackPause);
     socket.on('playback:seek', handlePlaybackSeek);
     socket.on('playback:error', handlePlaybackError);
+    socket.on('playback:speed', handlePlaybackSpeed);
+    socket.on('playback:audioTrack', handlePlaybackAudioTrack);
+    socket.on('playback:subtitle', handlePlaybackSubtitle);
     socket.on('mode:changed', handleModeChanged);
     socket.on('mode:error', handleModeError);
     socket.on('chat:message', handleChatMessage);
@@ -212,6 +236,9 @@ export const RoomProvider = ({ children }) => {
       socket.off('playback:pause', handlePlaybackPause);
       socket.off('playback:seek', handlePlaybackSeek);
       socket.off('playback:error', handlePlaybackError);
+      socket.off('playback:speed', handlePlaybackSpeed);
+      socket.off('playback:audioTrack', handlePlaybackAudioTrack);
+      socket.off('playback:subtitle', handlePlaybackSubtitle);
       socket.off('mode:changed', handleModeChanged);
       socket.off('mode:error', handleModeError);
       socket.off('chat:message', handleChatMessage);

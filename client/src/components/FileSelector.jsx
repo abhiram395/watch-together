@@ -1,13 +1,17 @@
 // FileSelector - Host selects video file with universal format support
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import useVideoProcessor from '../hooks/useVideoProcessor';
 import TranscodingProgress from './TranscodingProgress';
 import socket from '../socket';
 import { SUPPORTED_VIDEO_EXTENSIONS } from '../utils/formatDetector';
 
+// Build accept string with all extensions
+const ACCEPT_STRING = `video/*,${SUPPORTED_VIDEO_EXTENSIONS.map(ext => `.${ext}`).join(',')}`;
+
 const FileSelector = ({ onStreamReady }) => {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const [loadError, setLoadError] = useState(null);
   
   const {
     isProcessing,
@@ -25,17 +29,18 @@ const FileSelector = ({ onStreamReady }) => {
     const file = event.target.files[0];
     if (!file) return;
 
+    setLoadError(null);
+
     // Validate file is a video
     const fileName = file.name.toLowerCase();
     const hasVideoExtension = SUPPORTED_VIDEO_EXTENSIONS.some(ext => fileName.endsWith(`.${ext}`));
     
     if (!file.type.startsWith('video/') && !hasVideoExtension) {
-      alert('Please select a valid video file');
+      setLoadError('Please select a valid video file');
       return;
     }
 
     try {
-      
       // Notify other participants that video is being processed
       socket.emit('video:processing', { 
         filename: file.name,
@@ -43,7 +48,7 @@ const FileSelector = ({ onStreamReady }) => {
       });
 
       // Process video (analyze, transcode if needed, cache)
-      console.log('Processing video file:', file.name);
+      console.log('📁 Processing video file:', file.name);
       const processedFile = await processVideo(file);
       
       // Create object URL for the processed video file
@@ -52,51 +57,66 @@ const FileSelector = ({ onStreamReady }) => {
       // Create a hidden video element to capture stream
       const video = document.createElement('video');
       video.src = videoUrl;
-      video.muted = true; // Mute to prevent audio feedback during capture
-      video.loop = false;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
       
       videoRef.current = video;
 
       // Wait for video to load metadata
-      video.addEventListener('loadedmetadata', () => {
-        // Play the video (required for captureStream)
-        video.play().then(() => {
-          // Capture stream from video element
-          const stream = video.captureStream();
-          
-          if (stream) {
-            console.log('Stream captured successfully');
-            
-            // Notify participants that video is ready
-            socket.emit('video:ready', { 
-              filename: file.name 
-            });
-            
-            onStreamReady(stream);
-          } else {
-            throw new Error('Failed to capture video stream');
-          }
-        }).catch(err => {
-          console.error('Error playing video:', err);
-          throw new Error('Error playing video. Please try another file.');
-        });
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Video load timeout. The file may be corrupted or unsupported.'));
+        }, 30000);
+
+        video.onloadedmetadata = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        video.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error('Failed to load video. Try a different file or convert to MP4.'));
+        };
       });
 
-      video.addEventListener('error', (e) => {
-        console.error('Video error:', e);
-        throw new Error('Error loading video file');
+      // Play the video (required for captureStream)
+      await video.play();
+      
+      // Capture stream from video element
+      const stream = video.captureStream();
+      
+      if (!stream) {
+        throw new Error('Failed to capture video stream. Your browser may not support this feature.');
+      }
+
+      console.log('✅ Stream captured successfully');
+      
+      // Notify participants that video is ready
+      socket.emit('video:ready', { 
+        filename: file.name 
       });
       
+      onStreamReady(stream, video);
+      
     } catch (err) {
-      console.error('File processing error:', err);
-      alert(err.message || 'Error processing video file');
+      console.error('❌ File processing error:', err);
+      setLoadError(err.message || 'Error processing video file');
       reset();
     }
   };
 
   const handleCancel = () => {
     cancelProcessing();
-    // Reset file input
+    setLoadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const dismissError = () => {
+    setLoadError(null);
+    reset();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -116,13 +136,22 @@ const FileSelector = ({ onStreamReady }) => {
       
       <div className="file-selector">
         <div className="file-selector-content">
-          <div className="file-selector-icon">📁</div>
+          <div className="file-selector-icon">🎬</div>
           <h2>Select a Video File</h2>
           <p>Choose a movie from your device to stream to your friends</p>
+          
+          {/* Error Display */}
+          {(loadError || error) && (
+            <div className="file-error">
+              <span>❌ {loadError || error}</span>
+              <button onClick={dismissError} className="error-dismiss">✕</button>
+            </div>
+          )}
+          
           <input
             ref={fileInputRef}
             type="file"
-            accept={`video/*,${SUPPORTED_VIDEO_EXTENSIONS.map(ext => `.${ext}`).join(',')}`}
+            accept={ACCEPT_STRING}
             onChange={handleFileSelect}
             style={{ display: 'none' }}
             id="video-file-input"
@@ -138,7 +167,7 @@ const FileSelector = ({ onStreamReady }) => {
             ✨ <strong>All formats supported:</strong> MP4, MKV, AVI, MOV, WebM, FLV, WMV, and more!
           </p>
           <p className="file-hint-secondary">
-            Unsupported formats will be automatically converted
+            MP4 and WebM play instantly. Other formats are automatically converted.
           </p>
         </div>
       </div>
